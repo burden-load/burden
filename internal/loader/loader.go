@@ -1,9 +1,12 @@
 package loader
 
-import "log"
+import (
+	"os"
+)
 
 func LoadCollection(filePath string) error {
-	log.Printf("Загрузка коллекции из файла %s\n", filePath)
-	// TODO: Реализация загрузки коллекции
-	return nil
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
 }
