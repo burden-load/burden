@@ -7,6 +7,7 @@ import (
 	"burden/pkg/model"
 	"log"
 	"net/http"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -32,6 +33,7 @@ func RunTest(cfg *config.Config) *metrics.Metrics {
 	errors := 0
 	var totalResponseTime, totalLatency, downtime float64
 	peakConcurrency := 0
+	var memStats runtime.MemStats
 	mu := sync.Mutex{}
 
 	for i := 0; i < cfg.Users; i++ {
@@ -68,27 +70,33 @@ func RunTest(cfg *config.Config) *metrics.Metrics {
 	}
 	wg.Wait()
 
+	// Сбор данных об использовании ресурсов
+	runtime.ReadMemStats(&memStats)
+	memoryUsage := float64(memStats.Alloc) / 1024 / 1024 // в МБ
+
 	elapsedTime := time.Since(startTime).Seconds()
 	throughput := float64(completedRequests) / elapsedTime
 	avgResponseTime := totalResponseTime / float64(completedRequests)
 	avgLatency := totalLatency / float64(completedRequests)
 	errorRate := float64(errors) / float64(cfg.TotalRequests) * 100
+	resourceUtilization := memoryUsage / float64(memStats.Sys) * 100 // Потребление памяти в процентах
 
 	if cfg.Detailed {
-		log.Printf("Детальный отчет: \nThroughput: %.2f req/sec\nСреднее время отклика: %.2f sec\nСредняя задержка: %.2f sec\nОшибки: %d (%.2f%%)\nПиковая нагрузка: %d\nDowntime: %.2f sec", throughput, avgResponseTime, avgLatency, errors, errorRate, peakConcurrency, downtime)
+		log.Printf("Детальный отчет: \nThroughput: %.2f req/sec\nСреднее время отклика: %.2f sec\nСредняя задержка: %.2f sec\nОшибки: %d (%.2f%%)\nПиковая нагрузка: %d\nDowntime: %.2f sec\nResource Utilization: %.2f%%", throughput, avgResponseTime, avgLatency, errors, errorRate, peakConcurrency, downtime, resourceUtilization)
 	} else {
 		log.Printf("Throughput: %.2f req/sec, Среднее время отклика: %.2f sec, Средняя задержка: %.2f sec", throughput, avgResponseTime, avgLatency)
 	}
 
 	return &metrics.Metrics{
-		Throughput:    throughput,
-		ResponseTime:  avgResponseTime,
-		Latency:       avgLatency,
-		Errors:        errors,
-		TotalRequests: cfg.TotalRequests,
-		Concurrency:   cfg.Users,
-		PeakLoad:      peakConcurrency,
-		Downtime:      downtime,
+		Throughput:          throughput,
+		ResponseTime:        avgResponseTime,
+		Latency:             avgLatency,
+		Errors:              errors,
+		TotalRequests:       cfg.TotalRequests,
+		Concurrency:         cfg.Users,
+		PeakLoad:            peakConcurrency,
+		Downtime:            downtime,
+		ResourceUtilization: resourceUtilization,
 	}
 }
 
