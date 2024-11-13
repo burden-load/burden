@@ -30,7 +30,7 @@ func RunTest(cfg *config.Config) *metrics.Metrics {
 	startTime := time.Now()
 	completedRequests := 0
 	errors := 0
-	var totalResponseTime, totalLatency float64
+	var totalResponseTime, totalLatency, downtime float64
 	peakConcurrency := 0
 	mu := sync.Mutex{}
 
@@ -57,6 +57,7 @@ func RunTest(cfg *config.Config) *metrics.Metrics {
 					totalLatency += elapsed / 2
 				} else {
 					errors++
+					downtime += elapsed
 				}
 
 				mu.Lock()
@@ -74,7 +75,7 @@ func RunTest(cfg *config.Config) *metrics.Metrics {
 	errorRate := float64(errors) / float64(cfg.TotalRequests) * 100
 
 	if cfg.Detailed {
-		log.Printf("Детальный отчет: \nThroughput: %.2f req/sec\nСреднее время отклика: %.2f sec\nСредняя задержка: %.2f sec\nОшибки: %d (%.2f%%)\nПиковая нагрузка: %d", throughput, avgResponseTime, avgLatency, errors, errorRate, peakConcurrency)
+		log.Printf("Детальный отчет: \nThroughput: %.2f req/sec\nСреднее время отклика: %.2f sec\nСредняя задержка: %.2f sec\nОшибки: %d (%.2f%%)\nПиковая нагрузка: %d\nDowntime: %.2f sec", throughput, avgResponseTime, avgLatency, errors, errorRate, peakConcurrency, downtime)
 	} else {
 		log.Printf("Throughput: %.2f req/sec, Среднее время отклика: %.2f sec, Средняя задержка: %.2f sec", throughput, avgResponseTime, avgLatency)
 	}
@@ -87,6 +88,7 @@ func RunTest(cfg *config.Config) *metrics.Metrics {
 		TotalRequests: cfg.TotalRequests,
 		Concurrency:   cfg.Users,
 		PeakLoad:      peakConcurrency,
+		Downtime:      downtime,
 	}
 }
 
