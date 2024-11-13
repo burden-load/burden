@@ -4,11 +4,11 @@ import (
 	"burden/pkg/model"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 )
 
 func LoadCollection(filePath string) ([]model.Request, error) {
-	data, err := ioutil.ReadFile(filePath)
+	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("error reading file: %w", err)
 	}

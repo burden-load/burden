@@ -9,7 +9,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -36,18 +35,19 @@ func RunTest(cfg *config.Config) *metrics.Metrics {
 	errors := 0
 	var totalResponseTime, totalLatency, downtime float64
 	peakConcurrency := 0
-	var memStats runtime.MemStats
+	var testDuration time.Duration
 	mu := sync.Mutex{}
 
 	// Создаем канал для отслеживания завершения
-	stopChannel := make(chan bool)
+	stopChannelErrors := make(chan bool)
+	stopChannelTime := make(chan bool)
 
 	if cfg.MaxErrors != nil {
 		go func() {
 			for {
 				if errors > *cfg.MaxErrors {
 					log.Printf("Превышен порог ошибок (%d). Завершение тестирования.", *cfg.MaxErrors)
-					stopChannel <- true
+					stopChannelErrors <- true
 					break
 				}
 				time.Sleep(1 * time.Second)
@@ -55,75 +55,59 @@ func RunTest(cfg *config.Config) *metrics.Metrics {
 		}()
 	}
 
+	if cfg.TestDuration > 0 {
+		testDuration = time.Duration(cfg.TestDuration) * time.Second
+	}
+
+	go func() {
+		if testDuration > 0 {
+			time.Sleep(testDuration)
+			log.Println("Test stopped by time")
+			stopChannelTime <- true
+		}
+	}()
+
 	for i := 0; i < cfg.Users; i++ {
 		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			concurrency := 0
-			for j := 0; j < cfg.TotalRequests/cfg.Users; j++ {
-				select {
-				case <-stopChannel:
-					return
-				default:
-					mu.Lock()
-					concurrency++
-					if concurrency > peakConcurrency {
-						peakConcurrency = concurrency
-					}
-					mu.Unlock()
-
-					start := time.Now()
-					success, response := sendRequest(requests[j%len(requests)])
-					elapsed := time.Since(start).Seconds()
-
-					if success {
-						completedRequests++
-						totalResponseTime += elapsed
-						totalLatency += elapsed / 2
-						log.Printf("Response data: %s", response)
-					} else {
-						errors++
-						downtime += elapsed
-						log.Printf("Request failed: %v", response)
-					}
-
-					mu.Lock()
-					concurrency--
-					mu.Unlock()
-				}
-			}
-		}()
+		go processRequests(
+			requests,
+			cfg,
+			stopChannelErrors,
+			&mu,
+			&completedRequests,
+			&totalResponseTime,
+			&totalLatency,
+			&peakConcurrency,
+			&errors,
+			&downtime,
+			&wg)
 	}
 
 	wg.Wait()
-	close(stopChannel)
-
-	runtime.ReadMemStats(&memStats)
-	memoryUsage := float64(memStats.Alloc) / 1024 / 1024
+	close(stopChannelErrors)
+	close(stopChannelTime)
 
 	elapsedTime := time.Since(startTime).Seconds()
 	throughput := float64(completedRequests) / elapsedTime
 	avgResponseTime := totalResponseTime / float64(completedRequests)
 	avgLatency := totalLatency / float64(completedRequests)
 	errorRate := float64(errors) / float64(cfg.TotalRequests) * 100
-	resourceUtilization := memoryUsage / float64(memStats.Sys) * 100
 
 	if cfg.Detailed {
-		log.Printf("Детальный отчет: \nThroughput: %.2f req/sec\nСреднее время отклика: %.2f sec\nСредняя задержка: %.2f sec\nОшибки: %d (%.2f%%)\nПиковая нагрузка: %d\nDowntime: %.2f sec\nResource Utilization: %.2f%%", throughput, avgResponseTime, avgLatency, errors, errorRate, peakConcurrency, downtime, resourceUtilization)
+		log.Printf("Детальный отчет: \nThroughput: %.5f req/sec\nСреднее время отклика: %.5f sec\nСредняя задержка: %.5f sec\nОшибки: %d (%.1f%%)\nПиковая нагрузка: %d\nDowntime: %.1f sec\n", throughput, avgResponseTime, avgLatency, errors, errorRate, peakConcurrency, downtime)
 	} else {
-		log.Printf("Throughput: %.2f req/sec, Среднее время отклика: %.2f sec, Средняя задержка: %.2f sec", throughput, avgResponseTime, avgLatency)
+		log.Printf("Throughput: %.2f req/sec, Среднее время отклика: %.5f sec, Средняя задержка: %.5f sec", throughput, avgResponseTime, avgLatency)
 	}
 
 	return &metrics.Metrics{
-		Throughput:          throughput,
-		ResponseTime:        avgResponseTime,
-		Latency:             avgLatency,
-		Errors:              errors,
-		TotalRequests:       cfg.TotalRequests,
-		Concurrency:         cfg.Users,
-		PeakLoad:            peakConcurrency,
-		Downtime:            downtime,
-		ResourceUtilization: resourceUtilization,
+		Throughput:    throughput,
+		ResponseTime:  avgResponseTime,
+		Latency:       avgLatency,
+		Errors:        errors,
+		TotalRequests: cfg.TotalRequests,
+		Concurrency:   cfg.Users,
+		PeakLoad:      peakConcurrency,
+		Downtime:      downtime,
 	}
 }
 
@@ -200,4 +184,58 @@ func sendRequest(req model.Request) (bool, string) {
 	// Логируем ошибку для других кодов ответа
 	log.Printf("Request to %s failed with status code: %d, Response: %s", req.URL, resp.StatusCode, string(responseBody))
 	return false, ""
+}
+
+func processRequests(
+	requests []model.Request,
+	cfg *config.Config,
+	stopChannel <-chan bool,
+	mu *sync.Mutex,
+	completedRequests *int,
+	totalResponseTime *float64,
+	totalLatency *float64,
+	peakConcurrency *int,
+	errors *int,
+	downtime *float64,
+	wg *sync.WaitGroup) {
+
+	defer wg.Done()
+
+	concurrency := 0
+	for j := 0; j < cfg.TotalRequests/cfg.Users; j++ {
+		select {
+		case <-stopChannel:
+			return
+		default:
+			// Увеличиваем конкуренцию
+			mu.Lock()
+			concurrency++
+			if concurrency > *peakConcurrency {
+				*peakConcurrency = concurrency
+			}
+			mu.Unlock()
+
+			// Начинаем измерение времени
+			start := time.Now()
+			success, response := sendRequest(requests[j%len(requests)])
+			elapsed := time.Since(start).Seconds()
+
+			// Обработка успешных и неуспешных запросов
+			if success {
+				*completedRequests++
+				*totalResponseTime += elapsed
+				*totalLatency += elapsed / 2
+				log.Printf("Response data: %s", response)
+			} else {
+				*errors++
+				*downtime += elapsed
+				log.Printf("Request failed: %v", response)
+			}
+
+			// Уменьшаем конкуренцию
+			mu.Lock()
+			concurrency--
+			mu.Unlock()
+		}
+	}
 }
