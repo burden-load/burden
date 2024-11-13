@@ -5,9 +5,12 @@ import (
 	"burden/internal/loader"
 	"burden/internal/metrics"
 	"burden/pkg/model"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 )
@@ -124,26 +127,49 @@ func RunTest(cfg *config.Config) *metrics.Metrics {
 
 func sendRequest(req model.Request) bool {
 	client := &http.Client{}
-	httpReq, err := http.NewRequest(req.Method, req.URL, nil)
+
+	// Формирование URL с параметрами
+	urlWithParams := req.URL
+	if len(req.Params) > 0 {
+		urlWithParams += "?"
+		for key, value := range req.Params {
+			urlWithParams += fmt.Sprintf("%s=%s&", key, value)
+		}
+		urlWithParams = strings.TrimSuffix(urlWithParams, "&")
+	}
+
+	// Создание тела запроса, если оно есть
+	var body io.Reader
+	if req.Body != "" {
+		body = strings.NewReader(req.Body)
+	}
+
+	// Создание нового HTTP-запроса
+	httpReq, err := http.NewRequest(req.Method, urlWithParams, body)
 	if err != nil {
 		log.Printf("Make request failed: %v", err)
 		return false
 	}
 
+	// Установка заголовков, если они есть
 	for key, value := range req.Headers {
 		httpReq.Header.Set(key, value)
 	}
 
+	// Отправка запроса и замер времени
 	start := time.Now()
 	resp, err := client.Do(httpReq)
 	latency := time.Since(start).Seconds()
 
 	if err != nil {
-		log.Fatalf("Send request failed: %v", err)
+		log.Printf("Send request failed: %v", err)
 		return false
 	}
 	defer resp.Body.Close()
 
+	// Логирование успешного запроса
 	log.Printf("Successful request to %s. Latency: %.2f sec, Response code: %d", req.URL, latency, resp.StatusCode)
+
+	// Возвращаем true, если запрос был успешным (код 200)
 	return resp.StatusCode == http.StatusOK
 }
