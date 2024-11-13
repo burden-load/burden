@@ -7,6 +7,7 @@ import (
 	"burden/pkg/model"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -25,33 +26,58 @@ func RunTest(cfg *config.Config) *metrics.Metrics {
 		}
 	}
 
+	var wg sync.WaitGroup
 	startTime := time.Now()
 	completedRequests := 0
-	var totalResponseTime, totalLatency float64
 	errors := 0
+	var totalResponseTime, totalLatency float64
+	peakConcurrency := 0
+	mu := sync.Mutex{}
 
-	for i := 0; i < cfg.TotalRequests; i++ {
-		start := time.Now()
-		success := sendRequest(requests[i%len(requests)])
-		elapsed := time.Since(start).Seconds()
+	for i := 0; i < cfg.Users; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			concurrency := 0
+			for j := 0; j < cfg.TotalRequests/cfg.Users; j++ {
+				mu.Lock()
+				concurrency++
+				if concurrency > peakConcurrency {
+					peakConcurrency = concurrency
+				}
+				mu.Unlock()
 
-		if success {
-			completedRequests++
-			totalResponseTime += elapsed
-			totalLatency += elapsed / 2
-		} else {
-			errors++
-		}
+				start := time.Now()
+				success := sendRequest(requests[j%len(requests)])
+				elapsed := time.Since(start).Seconds()
+
+				if success {
+					completedRequests++
+					totalResponseTime += elapsed
+					totalLatency += elapsed / 2
+				} else {
+					errors++
+				}
+
+				mu.Lock()
+				concurrency--
+				mu.Unlock()
+			}
+		}()
 	}
+	wg.Wait()
 
 	elapsedTime := time.Since(startTime).Seconds()
 	throughput := float64(completedRequests) / elapsedTime
 	avgResponseTime := totalResponseTime / float64(completedRequests)
 	avgLatency := totalLatency / float64(completedRequests)
-
 	errorRate := float64(errors) / float64(cfg.TotalRequests) * 100
 
-	log.Printf("Test Completed. Throughput: %.2f RPS", throughput)
+	if cfg.Detailed {
+		log.Printf("Детальный отчет: \nThroughput: %.2f req/sec\nСреднее время отклика: %.2f sec\nСредняя задержка: %.2f sec\nОшибки: %d (%.2f%%)\nПиковая нагрузка: %d", throughput, avgResponseTime, avgLatency, errors, errorRate, peakConcurrency)
+	} else {
+		log.Printf("Throughput: %.2f req/sec, Среднее время отклика: %.2f sec, Средняя задержка: %.2f sec", throughput, avgResponseTime, avgLatency)
+	}
 
 	return &metrics.Metrics{
 		Throughput:    throughput,
@@ -59,6 +85,8 @@ func RunTest(cfg *config.Config) *metrics.Metrics {
 		Latency:       avgLatency,
 		Errors:        errors,
 		TotalRequests: cfg.TotalRequests,
+		Concurrency:   cfg.Users,
+		PeakLoad:      peakConcurrency,
 	}
 }
 
