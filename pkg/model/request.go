@@ -6,3 +6,35 @@ type Request struct {
 	Body    string            `json:"headers,omitempty"`
 	Headers map[string]string `json:"body,omitempty"`
 }
+
+type PostmanCollection struct {
+	Info PostmanInfo   `json:"info"`
+	Item []PostmanItem `json:"item"`
+}
+
+type PostmanInfo struct {
+	Name   string `json:"name"`
+	Schema string `json:"schema"`
+}
+
+type PostmanItem struct {
+	Name string           `json:"name"`
+	Item []PostmanSubItem `json:"item"`
+}
+
+type PostmanSubItem struct {
+	Name    string         `json:"name"`
+	Request PostmanRequest `json:"request"`
+}
+
+type PostmanRequest struct {
+	Method string        `json:"method"`
+	Header []interface{} `json:"header"`
+	URL    string        `json:"url"`
+	Body   *PostmanBody  `json:"body,omitempty"`
+}
+
+type PostmanBody struct {
+	Mode string `json:"mode"`
+	Raw  string `json:"raw"`
+}

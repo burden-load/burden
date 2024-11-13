@@ -3,29 +3,37 @@ package loader
 import (
 	"burden/pkg/model"
 	"encoding/json"
-	"io"
-	"log"
-	"os"
+	"fmt"
+	"io/ioutil"
 )
 
 func LoadCollection(filePath string) ([]model.Request, error) {
-	file, err := os.Open(filePath)
+	data, err := ioutil.ReadFile(filePath)
 	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	byteValue, err := io.ReadAll(file)
-	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error reading file: %w", err)
 	}
 
+	var collection model.PostmanCollection
+	err = json.Unmarshal(data, &collection)
+	if err != nil {
+		return nil, fmt.Errorf("error loading collection: %w", err)
+	}
+
+	// Преобразуем данные коллекции в массив `model.Request`
 	var requests []model.Request
-	if err := json.Unmarshal(byteValue, &requests); err != nil {
-		return nil, err
+	for _, item := range collection.Item {
+		for _, subItem := range item.Item {
+			var body string
+			if subItem.Request.Body != nil { // Проверяем, что Body не nil
+				body = subItem.Request.Body.Raw
+			}
+			requests = append(requests, model.Request{
+				Method: subItem.Request.Method,
+				URL:    subItem.Request.URL,
+				Body:   body,
+			})
+		}
 	}
-
-	log.Printf("Успешно загружено %d запросов из коллекции", len(requests))
 
 	return requests, nil
 }

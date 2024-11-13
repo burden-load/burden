@@ -1,0 +1,282 @@
+{
+	"info": {
+		"_postman_id": "ee9f0c46-81db-49d1-a86a-c6d6d49328ad",
+		"name": "Go ToDo Application",
+		"schema": "https://schema.getpostman.com/json/collection/v2.0.0/collection.json",
+		"_exporter_id": "29433684"
+	},
+	"item": [
+		{
+			"name": "ToDo's",
+			"item": [
+				{
+					"name": "Get ToDos",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "http://localhost/todos/"
+					},
+					"response": []
+				},
+				{
+					"name": "Get ToDO",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "http://localhost/todo/"
+					},
+					"response": []
+				},
+				{
+					"name": "Create ToDo",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"description\": \"New Task\",\n    \"status\": true,\n    \"priority\": 10,\n    \"user_id\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "http://localhost:8000/todo/"
+					},
+					"response": []
+				},
+				{
+					"name": "Update ToDo",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"description\": \"Updated Task\",\n    \"status\": false,\n    \"priority\": 8,\n    \"user_id\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "http://localhost/todo/1"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete ToDo",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": "http://localhost/todo/1"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Comments",
+			"item": [
+				{
+					"name": "Create comment",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"todo_id\": 1,\n    \"content\": \"Hello, i'm Vlad\",\n    \"author\": \"Vladislav Kanatov\"    \n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "http://localhost/comment/"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Comment",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "http://localhost/comment/1"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Comments",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "http://localhost/comments/1"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete comment",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": "http://localhost/comment/1"
+					},
+					"response": []
+				},
+				{
+					"name": "Update comment",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"todo_id\": 1,\n    \"content\": \"Update, i'm Glad\",\n    \"author\": \"Gladislav Vanatov\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "http://localhost/comment/1"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Category",
+			"item": [
+				{
+					"name": "Create category",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": "http://localhost/category/"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Category",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "http://localhost/category/1"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Categories",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "http://localhost/categories/"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete category",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": "http://localhost/category/1"
+					},
+					"response": []
+				},
+				{
+					"name": "Update category",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": "http://localhost/category/1"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Admin Users",
+			"item": [
+				{
+					"name": "Get users",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "http://localhost/users"
+					},
+					"response": []
+				},
+				{
+					"name": "Get user",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "http://localhost/user/2"
+					},
+					"response": []
+				},
+				{
+					"name": "Create User",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"casavasg\",\n    \"email\": \"avxaxz@ya.ru\",\n    \"password\": \"132465-Cs\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "http://localhost/user"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete user",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": "http://localhost/user/1"
+					},
+					"response": []
+				},
+				{
+					"name": "Update user",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"acxzv\",\n    \"email\": \"qavxzx@ya.ru\",\n    \"password\": \"132465-Cs\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "http://localhost/user/1"
+					},
+					"response": []
+				},
+				{
+					"name": "Login User",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"vladkanatov\",\n    \"password\": \"132465\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "http://localhost/login/"
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
