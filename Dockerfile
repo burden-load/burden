@@ -1,5 +1,5 @@
 # Указываем базовый образ для сборки
-FROM golang:1.19 AS builder
+FROM golang:1.23 AS builder
 
 # Создаем рабочую директорию
 WORKDIR /app
@@ -8,7 +8,7 @@ WORKDIR /app
 COPY . .
 
 # Сборка CLI-приложения
-RUN go build -o burden cmd/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -o burden cmd/main.go
 
 # Финальный этап: минимальный образ для запуска
 FROM alpine:latest
