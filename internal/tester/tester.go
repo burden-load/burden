@@ -128,7 +128,9 @@ func RunTest(cfg *config.Config) *metrics.Metrics {
 }
 
 func sendRequest(req model.Request) (bool, string) {
-	client := &http.Client{}
+	client := &http.Client{
+		Timeout: 30 * time.Second, // Устанавливаем таймаут на 30 секунд
+	}
 
 	// Формирование URL с параметрами
 	urlWithParams := req.URL
@@ -149,7 +151,7 @@ func sendRequest(req model.Request) (bool, string) {
 	// Создание нового HTTP-запроса
 	httpReq, err := http.NewRequest(req.Method, urlWithParams, body)
 	if err != nil {
-		log.Printf("Make request failed: %v", err)
+		log.Printf("Error creating request: %v, Method: %s, URL: %s", err, req.Method, req.URL)
 		return false, ""
 	}
 
@@ -159,32 +161,43 @@ func sendRequest(req model.Request) (bool, string) {
 	}
 
 	// Отправка запроса и замер времени
-	start := time.Now()
-	resp, err := client.Do(httpReq)
-	latency := time.Since(start).Seconds()
+	var resp *http.Response
+	var attempt int
+	for attempt = 1; attempt <= 3; attempt++ { // Максимум 3 попытки
+		start := time.Now()
+		resp, err = client.Do(httpReq)
+		latency := time.Since(start).Seconds()
 
-	if err != nil {
-		log.Printf("Send request failed: %v", err)
-		return false, ""
+		if err != nil {
+			log.Printf("Attempt %d: Error sending request: %v, Method: %s, URL: %s", attempt, err, req.Method, req.URL)
+			if attempt < 3 {
+				log.Printf("Retrying request to %s", req.URL)
+				time.Sleep(2 * time.Second) // Ожидаем 2 секунды перед повторной попыткой
+				continue
+			}
+			log.Printf("Request failed after 3 attempts")
+			return false, ""
+		}
+
+		// Успешный запрос
+		defer resp.Body.Close()
+		log.Printf("Request to %s successful. Latency: %.2f sec, Response code: %d", req.URL, latency, resp.StatusCode)
+		break
 	}
-	defer resp.Body.Close()
-
-	// Логирование успешного запроса
-	log.Printf("Successful request to %s. Latency: %.2f sec, Response code: %d", req.URL, latency, resp.StatusCode)
 
 	// Чтение тела ответа
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Printf("Failed to read response body: %v", err)
+		log.Printf("Error reading response body: %v", err)
 		return false, ""
 	}
 
-	// Возвращаем данные, если код 200
-	if resp.StatusCode == http.StatusOK {
+	// Проверяем успешные коды ответов (200-299)
+	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
 		return true, string(responseBody)
 	}
 
-	// В случае неудачного ответа
-	log.Printf("Request failed with status code: %d", resp.StatusCode)
+	// Логируем ошибку для других кодов ответа
+	log.Printf("Request to %s failed with status code: %d, Response: %s", req.URL, resp.StatusCode, string(responseBody))
 	return false, ""
 }

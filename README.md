@@ -1,5 +1,9 @@
-Burden - Load Testing CLI Tool
-==============================
+<p align="center">
+  <img src="assets/icon.png" width="100" height="100" />
+</p>
+<h1 align="center">
+  Burden - Load Testing CLI Tool
+</h1>
 
 Burden is a CLI-based load testing tool designed to simulate requests to a specified URL or API collection. The tool measures key performance metrics, helping you evaluate the efficiency and resilience of your application under load.
 
