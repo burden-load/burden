@@ -17,6 +17,7 @@ func main() {
 	totalRequests := flag.Int("requests", 100, "Общее количество запросов")
 	maxErrors := flag.Int("max-errors", -1, "Максимально допустимое количество ошибок для остановки теста (-1 для отключения)")
 	detailed := flag.Bool("detailed", false, "Выводить расширенные метрики")
+	duration := flag.Int("duration", 10, "Длительность теста (по умолчанию 10s)")
 
 	// Задаем пользовательскую функцию Usage для вывода справки
 	flag.Usage = func() {
@@ -30,6 +31,7 @@ func main() {
 		fmt.Println("  --requests=<count>    Количество запросов (по умолчанию 1000)")
 		fmt.Println("  --duration=<duration> Длительность теста (по умолчанию 10s)")
 		fmt.Println("  --detailed            Выводить более подробные метрики")
+		fmt.Println("  --max-errors=<count>  Максимальное количество ошибок до завершения с кодом 1")
 
 		fmt.Println("\nПримеры использования:")
 		fmt.Printf("  %s --url=http://example.com/api --users=10 --requests=1000\n", os.Args[0])
@@ -57,6 +59,7 @@ func main() {
 		Users:          *users,
 		TotalRequests:  *totalRequests,
 		Detailed:       *detailed,
+		TestDuration:   *duration,
 	}
 
 	// Установка maxErrors только если он задан
@@ -68,14 +71,15 @@ func main() {
 	log.Println("Запуск нагрузочного тестирования...")
 	metrics := tester.RunTest(cfg)
 
+	config.SaveMetricsToGitHubOutput(*metrics)
+
 	// Вывод результатов
-	log.Printf("Throughput: %.2f req/sec", metrics.Throughput)
-	log.Printf("Среднее время отклика: %.2f sec", metrics.ResponseTime)
-	log.Printf("Средняя задержка: %.2f sec", metrics.Latency)
+	log.Printf("Throughput: %.5f req/sec", metrics.Throughput)
+	log.Printf("Среднее время отклика: %.5f sec", metrics.ResponseTime)
+	log.Printf("Средняя задержка: %.5f sec", metrics.Latency)
 
 	if cfg.Detailed {
 		log.Printf("Ошибки: %d", metrics.Errors)
-		log.Printf("Использование ресурсов: %.2f%%", metrics.ResourceUtilization)
 		log.Printf("Конкурентные запросы: %d", metrics.Concurrency)
 		log.Printf("Пиковая нагрузка: %d", metrics.PeakLoad)
 		log.Printf("Время простоя: %.2f sec", metrics.Downtime)
