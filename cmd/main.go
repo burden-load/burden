@@ -4,7 +4,9 @@ import (
 	"burden/internal/config"
 	"burden/internal/tester"
 	"flag"
+	"fmt"
 	"log"
+	"os"
 )
 
 func main() {
@@ -16,8 +18,24 @@ func main() {
 	maxErrors := flag.Int("max-errors", -1, "Максимально допустимое количество ошибок для остановки теста (-1 для отключения)")
 	detailed := flag.Bool("detailed", false, "Выводить расширенные метрики")
 
+	// Задаем пользовательскую функцию Usage для вывода справки
+	flag.Usage = func() {
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options]\n", os.Args[0])
+		fmt.Println("Options:")
+		flag.PrintDefaults()
+		fmt.Println("\nПримеры использования:")
+		fmt.Printf("  %s --url http://example.com/api --users 10 --requests 1000\n", os.Args[0])
+		fmt.Printf("  %s --collection ./example_collection.json --detailed\n", os.Args[0])
+	}
+
 	// Парсинг флагов
 	flag.Parse()
+
+	// Если не передано ни одного параметра, выводим справку и выходим
+	if len(os.Args) == 1 {
+		flag.Usage()
+		os.Exit(1)
+	}
 
 	// Проверка обязательных параметров
 	if *url == "" && *collectionFile == "" {
