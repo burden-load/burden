@@ -5,6 +5,7 @@ type Metrics struct {
 	ResponseTime        float64
 	Latency             float64
 	Errors              int
+	TotalRequests       int
 	ResourceUtilization float64
 	Concurrency         int
 	PeakLoad            float64

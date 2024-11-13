@@ -28,6 +28,7 @@ func RunTest(cfg *config.Config) *metrics.Metrics {
 	startTime := time.Now()
 	completedRequests := 0
 	var totalResponseTime, totalLatency float64
+	errors := 0
 
 	for i := 0; i < cfg.TotalRequests; i++ {
 		start := time.Now()
@@ -38,6 +39,8 @@ func RunTest(cfg *config.Config) *metrics.Metrics {
 			completedRequests++
 			totalResponseTime += elapsed
 			totalLatency += elapsed / 2
+		} else {
+			errors++
 		}
 	}
 
@@ -46,12 +49,16 @@ func RunTest(cfg *config.Config) *metrics.Metrics {
 	avgResponseTime := totalResponseTime / float64(completedRequests)
 	avgLatency := totalLatency / float64(completedRequests)
 
+	errorRate := float64(errors) / float64(cfg.TotalRequests) * 100
+
 	log.Printf("Test Completed. Throughput: %.2f RPS", throughput)
 
 	return &metrics.Metrics{
-		Throughput:   throughput,
-		ResponseTime: avgResponseTime,
-		Latency:      avgLatency,
+		Throughput:    throughput,
+		ResponseTime:  avgResponseTime,
+		Latency:       avgLatency,
+		Errors:        errors,
+		TotalRequests: cfg.TotalRequests,
 	}
 }
 
