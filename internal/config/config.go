@@ -8,6 +8,7 @@ type Config struct {
 	Users          int
 	TotalRequests  int
 	TestDuration   int
+	MaxErrors      *int
 	Detailed       bool // Новый флаг для детализированного отчета
 }
 

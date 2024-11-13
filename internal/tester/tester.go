@@ -36,50 +36,72 @@ func RunTest(cfg *config.Config) *metrics.Metrics {
 	var memStats runtime.MemStats
 	mu := sync.Mutex{}
 
+	// Создаем канал для отслеживания завершения
+	stopChannel := make(chan bool)
+
+	if cfg.MaxErrors != nil {
+		go func() {
+			for {
+				if errors > *cfg.MaxErrors {
+					log.Printf("Превышен порог ошибок (%d). Завершение тестирования.", *cfg.MaxErrors)
+					stopChannel <- true
+					break
+				}
+				time.Sleep(1 * time.Second)
+			}
+		}()
+	}
+
 	for i := 0; i < cfg.Users; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			concurrency := 0
 			for j := 0; j < cfg.TotalRequests/cfg.Users; j++ {
-				mu.Lock()
-				concurrency++
-				if concurrency > peakConcurrency {
-					peakConcurrency = concurrency
+				select {
+				case <-stopChannel:
+					return
+				default:
+					mu.Lock()
+					concurrency++
+					if concurrency > peakConcurrency {
+						peakConcurrency = concurrency
+					}
+					mu.Unlock()
+
+					start := time.Now()
+					success := sendRequest(requests[j%len(requests)])
+					elapsed := time.Since(start).Seconds()
+
+					if success {
+						completedRequests++
+						totalResponseTime += elapsed
+						totalLatency += elapsed / 2
+					} else {
+						errors++
+						downtime += elapsed
+					}
+
+					mu.Lock()
+					concurrency--
+					mu.Unlock()
 				}
-				mu.Unlock()
-
-				start := time.Now()
-				success := sendRequest(requests[j%len(requests)])
-				elapsed := time.Since(start).Seconds()
-
-				if success {
-					completedRequests++
-					totalResponseTime += elapsed
-					totalLatency += elapsed / 2
-				} else {
-					errors++
-					downtime += elapsed
-				}
-
-				mu.Lock()
-				concurrency--
-				mu.Unlock()
 			}
 		}()
 	}
-	wg.Wait()
 
-	// Сбор данных об использовании ресурсов
+	wg.Wait()
+	close(stopChannel)
+
 	runtime.ReadMemStats(&memStats)
-	memoryUsage := float64(memStats.Alloc) / 1024 / 1024 // в МБ
+	memoryUsage := float64(memStats.Alloc) / 1024 / 1024
 
 	elapsedTime := time.Since(startTime).Seconds()
 	throughput := float64(completedRequests) / elapsedTime
 	avgResponseTime := totalResponseTime / float64(completedRequests)
 	avgLatency := totalLatency / float64(completedRequests)
 	errorRate := float64(errors) / float64(cfg.TotalRequests) * 100
-	resourceUtilization := memoryUsage / float64(memStats.Sys) * 100 // Потребление памяти в процентах
+	resourceUtilization := memoryUsage / float64(memStats.Sys) * 100
 
 	if cfg.Detailed {
 		log.Printf("Детальный отчет: \nThroughput: %.2f req/sec\nСреднее время отклика: %.2f sec\nСредняя задержка: %.2f sec\nОшибки: %d (%.2f%%)\nПиковая нагрузка: %d\nDowntime: %.2f sec\nResource Utilization: %.2f%%", throughput, avgResponseTime, avgLatency, errors, errorRate, peakConcurrency, downtime, resourceUtilization)
