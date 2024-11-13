@@ -28,9 +28,9 @@ Installation
 
 Download the binary or clone the repository, navigate to the project directory, and build the executable.
 
-    git clone https://github.com/your-username/burden.git
+    git clone https://github.com/vladkanatov/burden.git
     cd burden
-    go build
+    go build -o burden cmd/main.go
 
 Usage
 -----
