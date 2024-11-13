@@ -73,16 +73,18 @@ func RunTest(cfg *config.Config) *metrics.Metrics {
 					mu.Unlock()
 
 					start := time.Now()
-					success := sendRequest(requests[j%len(requests)])
+					success, response := sendRequest(requests[j%len(requests)])
 					elapsed := time.Since(start).Seconds()
 
 					if success {
 						completedRequests++
 						totalResponseTime += elapsed
 						totalLatency += elapsed / 2
+						log.Printf("Response data: %s", response)
 					} else {
 						errors++
 						downtime += elapsed
+						log.Printf("Request failed: %v", response)
 					}
 
 					mu.Lock()
@@ -125,7 +127,7 @@ func RunTest(cfg *config.Config) *metrics.Metrics {
 	}
 }
 
-func sendRequest(req model.Request) bool {
+func sendRequest(req model.Request) (bool, string) {
 	client := &http.Client{}
 
 	// Формирование URL с параметрами
@@ -148,7 +150,7 @@ func sendRequest(req model.Request) bool {
 	httpReq, err := http.NewRequest(req.Method, urlWithParams, body)
 	if err != nil {
 		log.Printf("Make request failed: %v", err)
-		return false
+		return false, ""
 	}
 
 	// Установка заголовков, если они есть
@@ -163,13 +165,26 @@ func sendRequest(req model.Request) bool {
 
 	if err != nil {
 		log.Printf("Send request failed: %v", err)
-		return false
+		return false, ""
 	}
 	defer resp.Body.Close()
 
 	// Логирование успешного запроса
 	log.Printf("Successful request to %s. Latency: %.2f sec, Response code: %d", req.URL, latency, resp.StatusCode)
 
-	// Возвращаем true, если запрос был успешным (код 200)
-	return resp.StatusCode == http.StatusOK
+	// Чтение тела ответа
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("Failed to read response body: %v", err)
+		return false, ""
+	}
+
+	// Возвращаем данные, если код 200
+	if resp.StatusCode == http.StatusOK {
+		return true, string(responseBody)
+	}
+
+	// В случае неудачного ответа
+	log.Printf("Request failed with status code: %d", resp.StatusCode)
+	return false, ""
 }
