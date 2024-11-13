@@ -19,7 +19,7 @@ jobs:
 
       - name: Build binary
         run: |
-          go build -o binary_name ./path/to/main.go
+          go build -o burden cmd/main.go
           
       - name: Upload binary as release asset
         id: upload-release
@@ -31,7 +31,7 @@ jobs:
           draft: false
           prerelease: false
           artifacts: |
-            binary_name
+            burden
     
       - name: Output uploading stage
         run: echo "Release has created ${{ steps.upload-release.outputs.html_url }}"
