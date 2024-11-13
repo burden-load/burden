@@ -1,29 +1,32 @@
 package config
 
-import (
-	"flag"
-	"time"
-)
+import "flag"
 
 type Config struct {
 	URL            string
 	CollectionFile string
 	Users          int
 	TotalRequests  int
-	Duration       time.Duration
-	Verbose        bool
+	TestDuration   int
+	Detailed       bool // Новый флаг для детализированного отчета
 }
 
-func ParseFlags() *Config {
-	cfg := &Config{}
+func LoadConfig() *Config {
+	url := flag.String("url", "http://localhost", "URL для нагрузки")
+	collectionFile := flag.String("collection", "", "Файл с коллекцией запросов")
+	users := flag.Int("users", 1, "Количество пользователей")
+	totalRequests := flag.Int("requests", 100, "Общее количество запросов")
+	testDuration := flag.Int("duration", 10, "Длительность теста в секундах")
+	detailed := flag.Bool("detailed", false, "Вывод подробного отчета")
 
-	flag.StringVar(&cfg.URL, "url", "", "URL для нагрузки (необязательно, если задана коллекция)")
-	flag.StringVar(&cfg.CollectionFile, "collection", "", "Путь к файлу коллекции запросов (заменяет URL)")
-	flag.IntVar(&cfg.Users, "users", 1, "Количество параллельных пользователей")
-	flag.IntVar(&cfg.TotalRequests, "requests", 0, "Общее число запросов (если задано, длительность игнорируется)")
-	flag.DurationVar(&cfg.Duration, "duration", 0, "Длительность теста (если задана, количество запросов игнорируется)")
-	flag.BoolVar(&cfg.Verbose, "verbose", false, "Вывод всех метрик")
 	flag.Parse()
 
-	return cfg
+	return &Config{
+		URL:            *url,
+		CollectionFile: *collectionFile,
+		Users:          *users,
+		TotalRequests:  *totalRequests,
+		TestDuration:   *testDuration,
+		Detailed:       *detailed,
+	}
 }

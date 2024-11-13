@@ -8,7 +8,7 @@ type Metrics struct {
 	TotalRequests       int
 	ResourceUtilization float64
 	Concurrency         int
-	PeakLoad            float64
+	PeakLoad            int
 	Downtime            float64
 }
 
