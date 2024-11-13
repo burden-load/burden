@@ -25,8 +25,8 @@ jobs:
         id: upload-release
         uses: ncipollo/release-action@v1
         with:
-          tag: 'v${{ github.run_number }}' 
-          name: 'Release v${{ github.run_number }}'
+          tag: 'v1.${{ github.run_number }}' 
+          name: 'v1.${{ github.run_number }}'
           generateReleaseNotes: true
           draft: false
           prerelease: false
