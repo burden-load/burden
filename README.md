@@ -1,5 +1,9 @@
-Burden - Load Testing CLI Tool
-==============================
+<p align="center">
+  <img src="assets/icon.png" width="100" height="100" />
+</p>
+<h1 align="center">
+  Burden - Load Testing CLI Tool
+</h1>
 
 Burden is a CLI-based load testing tool designed to simulate requests to a specified URL or API collection. The tool measures key performance metrics, helping you evaluate the efficiency and resilience of your application under load.
 
@@ -24,9 +28,9 @@ Installation
 
 Download the binary or clone the repository, navigate to the project directory, and build the executable.
 
-    git clone https://github.com/your-username/burden.git
+    git clone https://github.com/vladkanatov/burden.git
     cd burden
-    go build
+    go build -o burden cmd/main.go
 
 Usage
 -----

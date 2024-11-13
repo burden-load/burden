@@ -5,6 +5,7 @@ type Request struct {
 	URL     string            `json:"url"`
 	Body    string            `json:"headers,omitempty"`
 	Headers map[string]string `json:"body,omitempty"`
+	Params  map[string]string `json:"params,omitempty"`
 }
 
 type PostmanCollection struct {
