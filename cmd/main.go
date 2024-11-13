@@ -22,10 +22,18 @@ func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options]\n", os.Args[0])
 		fmt.Println("Options:")
-		flag.PrintDefaults()
+
+		// Пример ручного вывода флагов с двумя дефисами
+		fmt.Println("  --url=<url>           URL для тестирования (обязательный)")
+		fmt.Println("  --collection=<path>   Путь к коллекции (необязательный)")
+		fmt.Println("  --users=<count>       Количество пользователей для нагрузки (по умолчанию 1)")
+		fmt.Println("  --requests=<count>    Количество запросов (по умолчанию 1000)")
+		fmt.Println("  --duration=<duration> Длительность теста (по умолчанию 10s)")
+		fmt.Println("  --detailed            Выводить более подробные метрики")
+
 		fmt.Println("\nПримеры использования:")
-		fmt.Printf("  %s --url http://example.com/api --users 10 --requests 1000\n", os.Args[0])
-		fmt.Printf("  %s --collection ./example_collection.json --detailed\n", os.Args[0])
+		fmt.Printf("  %s --url=http://example.com/api --users=10 --requests=1000\n", os.Args[0])
+		fmt.Printf("  %s --collection=./example_collection.json --detailed\n", os.Args[0])
 	}
 
 	// Парсинг флагов
