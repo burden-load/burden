@@ -5,10 +5,11 @@
   Burden - Load Testing CLI Tool
 </h1>
 
-![release](https://img.shields.io/github/v/release/burden-load/burden)
-![ci](https://github.com/burden-load/burden/actions/workflows/main.yml/badge.svg)
-![coverage](https://img.shields.io/codecov/c/github/burden-load/burden)
-![license](https://img.shields.io/github/license/burden-load/burden)
+![GitHub release (latest by date)](https://img.shields.io/github/v/release/burden-load/burden)
+![Build Status](https://github.com/burden-load/burden/actions/workflows/main.yml/badge.svg)
+[![Hits-of-Code](https://hitsofcode.com/github/burden-load/burden?branch=main&label=Hits-of-Code)](https://hitsofcode.com/github/burden-load/burden/view?branch=main&label=Hits-of-Code)
+![License](https://img.shields.io/github/license/burden-load/burden)
+
 
 Burden is a CLI-based load testing tool designed to simulate requests to a specified URL or API collection. The tool measures key performance metrics, helping you evaluate the efficiency and resilience of your application under load.
 
