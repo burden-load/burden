@@ -2,6 +2,7 @@ package config
 
 import (
 	"burden/internal/metrics"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -15,55 +16,51 @@ type Config struct {
 	TestDuration   int
 	MaxErrors      *int
 	Detailed       bool // Новый флаг для детализированного отчета
+	MinThroughput  *float64
 }
 
-func SaveMetricsToGitHubOutput(metrics metrics.Metrics) {
-	// Получаем путь к файлу GITHUB_OUTPUT из переменной окружения
+// SaveMetricsToGitHubOutput сохраняет метрики в файл GITHUB_OUTPUT.
+func SaveMetricsToGitHubOutput(metrics metrics.Metrics) error {
+	// Получение пути к файлу GITHUB_OUTPUT
 	outputFile := os.Getenv("GITHUB_OUTPUT")
 	if outputFile == "" {
-		log.Fatalf("Переменная окружения GITHUB_OUTPUT не установлена")
+		return errors.New("переменная окружения GITHUB_OUTPUT не установлена")
 	}
 
-	// Открываем файл для записи
+	// Открытие файла для записи
 	file, err := os.OpenFile(outputFile, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
-		log.Fatalf("Ошибка при открытии GITHUB_OUTPUT: %v", err)
+		return fmt.Errorf("ошибка при открытии GITHUB_OUTPUT: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if cerr := file.Close(); cerr != nil {
+			log.Printf("ошибка при закрытии файла: %v", cerr)
+		}
+	}()
+
+	// Список метрик для записи
+	metricsMap := map[string]interface{}{
+		"throughput":    fmt.Sprintf("%.2f", metrics.Throughput),
+		"response_time": fmt.Sprintf("%.5f", metrics.ResponseTime),
+		"latency":       fmt.Sprintf("%.5f", metrics.Latency),
+		"errors":        metrics.Errors,
+		"concurrency":   metrics.Concurrency,
+		"peak_load":     metrics.PeakLoad,
+		"downtime":      fmt.Sprintf("%.2f", metrics.Downtime),
+	}
 
 	// Запись метрик в файл
-	_, err = fmt.Fprintf(file, "throughput=%.2f\n", metrics.Throughput)
-	if err != nil {
-		log.Fatalf("Ошибка при записи в GITHUB_OUTPUT: %v", err)
+	for key, value := range metricsMap {
+		if err := writeToOutput(file, key, value); err != nil {
+			return fmt.Errorf("ошибка при записи метрики '%s': %w", key, err)
+		}
 	}
 
-	_, err = fmt.Fprintf(file, "response_time=%.5f\n", metrics.ResponseTime)
-	if err != nil {
-		log.Fatalf("Ошибка при записи в GITHUB_OUTPUT: %v", err)
-	}
+	return nil
+}
 
-	_, err = fmt.Fprintf(file, "latency=%.5f\n", metrics.Latency)
-	if err != nil {
-		log.Fatalf("Ошибка при записи в GITHUB_OUTPUT: %v", err)
-	}
-
-	_, err = fmt.Fprintf(file, "errors=%d\n", metrics.Errors)
-	if err != nil {
-		log.Fatalf("Ошибка при записи в GITHUB_OUTPUT: %v", err)
-	}
-
-	_, err = fmt.Fprintf(file, "concurrency=%d\n", metrics.Concurrency)
-	if err != nil {
-		log.Fatalf("Ошибка при записи в GITHUB_OUTPUT: %v", err)
-	}
-
-	_, err = fmt.Fprintf(file, "peak_load=%d\n", metrics.PeakLoad)
-	if err != nil {
-		log.Fatalf("Ошибка при записи в GITHUB_OUTPUT: %v", err)
-	}
-
-	_, err = fmt.Fprintf(file, "downtime=%.2f\n", metrics.Downtime)
-	if err != nil {
-		log.Fatalf("Ошибка при записи в GITHUB_OUTPUT: %v", err)
-	}
+// writeToOutput записывает ключ-значение в указанный файл.
+func writeToOutput(file *os.File, key string, value interface{}) error {
+	_, err := fmt.Fprintf(file, "%s=%v\n", key, value)
+	return err
 }
