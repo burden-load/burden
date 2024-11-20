@@ -18,6 +18,7 @@ func RunTest(cfg *config.Config) *metrics.Metrics {
 	var requests []model.Request
 	var err error
 
+	// Загрузка запросов из файла коллекции или использования базового GET
 	if cfg.CollectionFile != "" {
 		requests, err = loader.LoadCollection(cfg.CollectionFile)
 		if err != nil {
@@ -29,74 +30,124 @@ func RunTest(cfg *config.Config) *metrics.Metrics {
 		}
 	}
 
-	var wg sync.WaitGroup
-	startTime := time.Now()
-	completedRequests := 0
-	errors := 0
-	var totalResponseTime, totalLatency, downtime float64
-	peakConcurrency := 0
-	var testDuration time.Duration
-	mu := sync.Mutex{}
+	var (
+		completedRequests int
+		errors            int
+		totalResponseTime float64
+		totalLatency      float64
+		downtime          float64
+		startTime         = time.Now()
+		sem               = make(chan struct{}, cfg.Users)
+		mu                sync.Mutex
+		peakConcurrency   int
+	)
 
-	// Создаем канал для отслеживания завершения
-	stopChannelErrors := make(chan bool)
-	stopChannelTime := make(chan bool)
+	// Определяем каналы для завершения теста
+	stopChannel := make(chan struct{})
 
-	if cfg.MaxErrors != nil {
+	// Если указано минимальное значение throughput
+	if cfg.MinThroughput != nil && *cfg.MinThroughput > 0 {
 		go func() {
 			for {
-				if errors > *cfg.MaxErrors {
-					log.Printf("Превышен порог ошибок (%d). Завершение тестирования.", *cfg.MaxErrors)
-					stopChannelErrors <- true
-					break
+				elapsedTime := time.Since(startTime).Seconds()
+				if elapsedTime > 5 {
+					currentThroughput := float64(completedRequests) / elapsedTime
+					if currentThroughput < *cfg.MinThroughput {
+						log.Fatalf("Throughput ниже минимального значения %.2f req/sec. Завершение тестирования.", *cfg.MinThroughput)
+						close(stopChannel)
+						return
+					}
 				}
 				time.Sleep(1 * time.Second)
 			}
 		}()
 	}
 
+	// Если указан порог ошибок
+	if cfg.MaxErrors != nil && *cfg.MaxErrors > 0 {
+		go func() {
+			for {
+				if errors > *cfg.MaxErrors {
+					log.Printf("Превышен порог ошибок (%d). Завершение тестирования.", *cfg.MaxErrors)
+					close(stopChannel)
+					return
+				}
+				time.Sleep(1 * time.Second)
+			}
+		}()
+	}
+
+	// Если указана продолжительность теста
 	if cfg.TestDuration > 0 {
-		testDuration = time.Duration(cfg.TestDuration) * time.Second
+		go func() {
+			time.Sleep(time.Duration(cfg.TestDuration) * time.Second)
+			log.Println("Тест завершен по времени.")
+			close(stopChannel)
+		}()
 	}
 
-	go func() {
-		if testDuration > 0 {
-			time.Sleep(testDuration)
-			log.Println("Test stopped by time")
-			stopChannelTime <- true
+	var wg sync.WaitGroup
+	requestsLimit := cfg.TotalRequests // Количество запросов по умолчанию
+	if requestsLimit == 0 {
+		requestsLimit = int(^uint(0) >> 1) // Устанавливаем максимальное значение int (если не указан totalRequests)
+	}
+
+	for i := 0; i < requestsLimit; i++ {
+		select {
+		case <-stopChannel:
+			log.Println("Тест завершен по внешнему сигналу.")
+			goto END
+		default:
+			sem <- struct{}{}
+			wg.Add(1)
+			go func(req model.Request) {
+				defer func() {
+					wg.Done()
+					<-sem
+				}()
+
+				start := time.Now()
+				success, response := sendRequest(req)
+				elapsed := time.Since(start).Seconds()
+
+				mu.Lock()
+				if success {
+					completedRequests++
+					totalResponseTime += elapsed
+					totalLatency += elapsed / 2
+				} else {
+					errors++
+					downtime += elapsed
+				}
+
+				currentConcurrency := len(sem)
+				if currentConcurrency > peakConcurrency {
+					peakConcurrency = currentConcurrency
+				}
+				mu.Unlock()
+
+				if success {
+					log.Printf("Response: %s", response)
+				}
+			}(requests[i%len(requests)])
 		}
-	}()
-
-	for i := 0; i < cfg.Users; i++ {
-		wg.Add(1)
-		go processRequests(
-			requests,
-			cfg,
-			stopChannelErrors,
-			&mu,
-			&completedRequests,
-			&totalResponseTime,
-			&totalLatency,
-			&peakConcurrency,
-			&errors,
-			&downtime,
-			&wg)
 	}
 
+END:
 	wg.Wait()
-	close(stopChannelErrors)
-	close(stopChannelTime)
 
 	elapsedTime := time.Since(startTime).Seconds()
 	throughput := float64(completedRequests) / elapsedTime
 	avgResponseTime := totalResponseTime / float64(completedRequests)
 	avgLatency := totalLatency / float64(completedRequests)
-	errorRate := float64(errors) / float64(cfg.TotalRequests) * 100
 
+	// Логирование результатов
 	if cfg.Detailed {
-		log.Printf("Детальный отчет: \nThroughput: %.5f req/sec\nСреднее время отклика: %.5f sec\nСредняя задержка: %.5f sec\nОшибки: %d (%.1f%%)\nПиковая нагрузка: %d\nDowntime: %.1f sec\n", throughput, avgResponseTime, avgLatency, errors, errorRate, peakConcurrency, downtime)
+		log.Printf("Детальный отчет:\nThroughput: %.5f req/sec\nСреднее время отклика: %.5f sec\nСредняя задержка: %.5f sec\nОшибки: %d\nПиковая конкуренция: %d\nDowntime: %.1f sec",
+			throughput, avgResponseTime, avgLatency, errors, peakConcurrency, downtime)
 	} else {
-		log.Printf("Throughput: %.2f req/sec, Среднее время отклика: %.5f sec, Средняя задержка: %.5f sec", throughput, avgResponseTime, avgLatency)
+		log.Printf("Throughput: %.2f req/sec, Среднее время отклика: %.5f sec, Средняя задержка: %.5f sec",
+			throughput, avgResponseTime, avgLatency)
 	}
 
 	return &metrics.Metrics{
@@ -104,7 +155,7 @@ func RunTest(cfg *config.Config) *metrics.Metrics {
 		ResponseTime:  avgResponseTime,
 		Latency:       avgLatency,
 		Errors:        errors,
-		TotalRequests: cfg.TotalRequests,
+		TotalRequests: completedRequests,
 		Concurrency:   cfg.Users,
 		PeakLoad:      peakConcurrency,
 		Downtime:      downtime,
@@ -113,7 +164,7 @@ func RunTest(cfg *config.Config) *metrics.Metrics {
 
 func sendRequest(req model.Request) (bool, string) {
 	client := &http.Client{
-		Timeout: 30 * time.Second, // Устанавливаем таймаут на 30 секунд
+		Timeout: 30 * time.Second,
 	}
 
 	// Формирование URL с параметрами
@@ -126,63 +177,43 @@ func sendRequest(req model.Request) (bool, string) {
 		urlWithParams = strings.TrimSuffix(urlWithParams, "&")
 	}
 
-	// Создание тела запроса, если оно есть
+	// Создание тела запроса
 	var body io.Reader
 	if req.Body != "" {
 		body = strings.NewReader(req.Body)
 	}
 
-	// Создание нового HTTP-запроса
+	// Создание HTTP-запроса
 	httpReq, err := http.NewRequest(req.Method, urlWithParams, body)
 	if err != nil {
-		log.Printf("Error creating request: %v, Method: %s, URL: %s", err, req.Method, req.URL)
+		log.Printf("Ошибка создания запроса: %v, Method: %s, URL: %s", err, req.Method, req.URL)
 		return false, ""
 	}
 
-	// Установка заголовков, если они есть
+	// Установка заголовков
 	for key, value := range req.Headers {
 		httpReq.Header.Set(key, value)
 	}
 
-	// Отправка запроса и замер времени
-	var resp *http.Response
-	var attempt int
-	for attempt = 1; attempt <= 3; attempt++ { // Максимум 3 попытки
-		start := time.Now()
-		resp, err = client.Do(httpReq)
-		latency := time.Since(start).Seconds()
-
-		if err != nil {
-			log.Printf("Attempt %d: Error sending request: %v, Method: %s, URL: %s", attempt, err, req.Method, req.URL)
-			if attempt < 3 {
-				log.Printf("Retrying request to %s", req.URL)
-				time.Sleep(2 * time.Second) // Ожидаем 2 секунды перед повторной попыткой
-				continue
-			}
-			log.Printf("Request failed after 3 attempts")
-			return false, ""
-		}
-
-		// Успешный запрос
-		defer resp.Body.Close()
-		log.Printf("Request to %s successful. Latency: %.2f sec, Response code: %d", req.URL, latency, resp.StatusCode)
-		break
+	// Отправка запроса
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		log.Printf("Ошибка выполнения запроса: %v, Method: %s, URL: %s", err, req.Method, req.URL)
+		return false, ""
 	}
+	defer resp.Body.Close()
 
-	// Чтение тела ответа
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Printf("Error reading response body: %v", err)
+		log.Printf("Ошибка чтения тела ответа: %v", err)
 		return false, ""
 	}
 
-	// Проверяем успешные коды ответов (200-299)
-	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		return true, string(responseBody)
 	}
 
-	// Логируем ошибку для других кодов ответа
-	log.Printf("Request to %s failed with status code: %d, Response: %s", req.URL, resp.StatusCode, string(responseBody))
+	log.Printf("Запрос к %s завершился с ошибкой: код ответа %d", req.URL, resp.StatusCode)
 	return false, ""
 }
 
